@@ -1,0 +1,18 @@
+# Environment
+.DS_Store
+
+# Python
+.venv
+__pycache__/
+
+# R
+.Rhistory
+.Rproj.user
+*.Rproj
+*.html
+
+# Assets
+**/data/VUA/
+**/model
+**/predict
+**/output

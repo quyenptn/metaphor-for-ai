@@ -1,3 +1,16 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+venv_path <- file.path(getwd(), ".venv")
+reticulate::use_virtualenv(venv_path,required = TRUE)
+reticulate::py_config()
+reticulate::py_list_packages()
+```
+
+```{python}
 import csv, emoji, html, ftfy, re
 import pandas as pd
 from tqdm import tqdm
@@ -100,31 +113,32 @@ def clean_tweet(text: str) -> str:
     t = re.sub(r'\s+', ' ', t).strip().lower()
     
     return t
+```
 
+```{python}
+input_path = "./shared_data/merged_tweets_shorten.csv"
+output_path = "./shared_data/cleaned_tweets_shorten.csv"
+text_col = "text"
 
-if __name__ == "__main__":
-    input_path = "./shared_data/merged_tweets_shorten.csv"
-    output_path = "./shared_data/cleaned_tweets_shorten.csv"
-    text_col = "text"
-    
-    with open(input_path, 'r', encoding='latin-1', newline='') as f:
-        df = pd.DataFrame(list(csv.DictReader(f)))
+with open(input_path, 'r', encoding='latin-1', newline='') as f:
+    df = pd.DataFrame(list(csv.DictReader(f)))
 
-    cleaned = []
-    for raw in tqdm(df[text_col].astype(str), desc="Cleaning"):
-        cleaned.append(clean_tweet(raw))
+cleaned = []
+for raw in tqdm(df[text_col].astype(str), desc="Cleaning"):
+    cleaned.append(clean_tweet(raw))
 
-    out = pd.DataFrame({'sentence': cleaned})
-    
-    # Drop empties & duplicates
-    out = out.loc[out['sentence'].str.strip().ne('')].drop_duplicates('sentence')
+out = pd.DataFrame({'sentence': cleaned})
 
-    # Write data
-    with open(output_path, 'w', encoding='utf-8', newline='') as f:
-        f.write("sentence\n")
-        out.to_csv(
-            f,
-            index=False,
-            header=False,
-            quoting=csv.QUOTE_ALL,
-        )
+# Drop empties & duplicates
+out = out.loc[out['sentence'].str.strip().ne('')].drop_duplicates('sentence')
+
+# Write data
+with open(output_path, 'w', encoding='utf-8', newline='') as f:
+    f.write("sentence\n")
+    out.to_csv(
+        f,
+        index=False,
+        header=False,
+        quoting=csv.QUOTE_ALL,
+    )
+```

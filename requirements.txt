@@ -1,0 +1,14 @@
+numpy
+pandas
+tensorflow==2.15.1
+tf_keras==2.15.1
+torch
+transformers==4.37.2
+hf-xet
+scikit-learn
+scipy
+spacy
+tqdm
+emoji
+ftfy
+langdetect

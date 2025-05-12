@@ -11,7 +11,7 @@ from langdetect.lang_detect_exception import LangDetectException
 DetectorFactory.seed = 0
 
 # Load the English NLP model
-nlp = spacy.load('en_core_web_lg')
+nlp = spacy.load('en_core_web_sm')
 
 # Turn on tqdm pandas integration
 tqdm.pandas()
