@@ -1,0 +1,52 @@
+import nltk
+from nltk.corpus import wordnet as wn
+import pandas as pd
+
+nltk.download('wordnet')
+nltk.download('omw-1.4')
+
+# === Define Health-Related Seeds ===
+health_seeds = {
+    "noun": ["infection", "virus", "vaccine", "epidemic", "infestation", "disease", "medicine", "treatment", "health"],
+    "verb": ["monitor", "infect", "heal", "treat", "spread"],
+    "adj": ["contaminated", "safe", "healthy", "sick", "infected"]
+}
+
+# === Function: check if gloss suggests human context ===
+def is_human_related(synset):
+    gloss = synset.definition().lower()
+    return any(term in gloss for term in ["person", "people", "patient", "body", "individual", "human", "someone"])
+
+# === Function to collect seed + filtered WordNet synonyms ===
+def get_human_related_words_with_seeds(seed_words, wn_pos, pos_label):
+    records = [{"word": seed.lower(), "pos": pos_label} for seed in seed_words]  # Always keep seeds
+
+    for seed in seed_words:
+        synsets = wn.synsets(seed, pos=wn_pos)
+        for syn in synsets:
+            if is_human_related(syn):
+                for lemma in syn.lemmas():
+                    word = lemma.name().replace("_", " ").lower()
+                    records.append({"word": word, "pos": pos_label})
+    return records
+
+# === POS mapping ===
+pos_map = {
+    "noun": wn.NOUN,
+    "verb": wn.VERB,
+    "adj": wn.ADJ
+}
+
+# === Combine everything into one CSV ===
+all_records = []
+
+for pos_label, seeds in health_seeds.items():
+    wn_pos = pos_map[pos_label]
+    entries = get_human_related_words_with_seeds(seeds, wn_pos, pos_label)
+    all_records.extend(entries)
+
+# Remove duplicates and sort
+df = pd.DataFrame(all_records).drop_duplicates().sort_values(by=["pos", "word"])
+df.to_csv("wordnet_human_health.csv", index=False)
+
+print(f"✅ Saved {len(df)} words (including original seeds) to 'wordnet_human_intelligence_all.csv'")
