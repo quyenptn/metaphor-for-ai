@@ -1,3 +1,15 @@
+```{r}
+wd <- getwd()
+setwd("..")
+parent <- getwd()
+setwd(wd)
+venv_path <- file.path(parent, ".venv")
+reticulate::use_virtualenv(venv_path,required = TRUE)
+reticulate::py_config()
+reticulate::py_list_packages()
+```
+
+```{python}
 import re, sys
 import numpy as np
 import pandas as pd
@@ -103,3 +115,5 @@ if __name__ == '__main__':
     print("Extracting features...")
     get_features(filtered_csv, preprocessed_csv)
     print("Preprocessing completed.")
+
+```

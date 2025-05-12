@@ -1,0 +1,130 @@
+```{r}
+wd <- getwd()
+setwd("..")
+parent <- getwd()
+setwd(wd)
+venv_path <- file.path(parent, ".venv")
+reticulate::use_virtualenv(venv_path,required = TRUE)
+reticulate::py_config()
+reticulate::py_list_packages()
+```
+
+```{python}
+import os, sys
+import numpy as np
+import pandas as pd
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+import tensorflow as tf
+from tqdm import tqdm
+from transformers import RobertaTokenizer, RobertaConfig, TFRobertaModel
+
+
+def preprocessing(x):
+    x = str(x)
+    x = '"'+x+'"'
+    return x
+
+
+def compute_output_arrays(df, columns):
+    return np.asarray(df[columns].astype(int))
+
+
+def _convert_to_transformer_inputs(instance, instance2, tokenizer, max_sequence_length):
+    """Converts tokenized input to ids, masks and segments for transformer (including bert)"""
+    def return_id(str1, str2, truncation_strategy, length):
+        inputs = tokenizer.encode_plus(str1, str2,
+                                       add_special_tokens=True,
+                                       max_length=length,
+                                       return_token_type_ids=True,
+                                       truncation_strategy=truncation_strategy)
+        input_ids = inputs["input_ids"]
+        input_masks = [1] * len(input_ids)
+        input_segments = inputs["token_type_ids"]
+        padding_length = length - len(input_ids)
+        padding_id = tokenizer.pad_token_id
+        input_ids = input_ids + ([padding_id] * padding_length)
+        input_masks = input_masks + ([0] * padding_length)
+        input_segments = input_segments + ([0] * padding_length)
+        return [input_ids, input_masks, input_segments]
+    input_ids, input_masks, input_segments = return_id(
+        instance, None, 'longest_first', max_sequence_length)
+    input_ids2, input_masks2, input_segments2 = return_id(
+        instance2, None, 'longest_first', max_sequence_length)
+    return [input_ids, input_masks, input_segments,
+            input_ids2, input_masks2, input_segments2]
+
+
+def compute_input_arrays(df, columns, tokenizer, max_sequence_length):
+    input_ids, input_masks, input_segments = [], [], []
+    input_ids2, input_masks2, input_segments2 = [], [], []
+    for _, instance in tqdm(df[columns].iterrows()):
+        ids, masks, segments, ids2, masks2, segments2 = \
+            _convert_to_transformer_inputs(str(instance.sentence), str(instance.sentence2), tokenizer, max_sequence_length)
+        input_ids.append(ids)
+        input_masks.append(masks)
+        input_segments.append(segments)
+        input_ids2.append(ids2)
+        input_masks2.append(masks2)
+        input_segments2.append(segments2)
+    return [np.asarray(input_ids, dtype=np.int32),
+            np.asarray(input_masks, dtype=np.int32),
+            np.asarray(input_segments, dtype=np.int32),
+            np.asarray(input_ids2, dtype=np.int32),
+            np.asarray(input_masks2, dtype=np.int32),
+            np.asarray(input_segments2, dtype=np.int32)]
+
+
+def create_model():
+    input_id = tf.keras.layers.Input((MAX_SEQUENCE_LENGTH,), dtype=tf.int32)
+    input_mask = tf.keras.layers.Input((MAX_SEQUENCE_LENGTH,), dtype=tf.int32)
+    input_atn = tf.keras.layers.Input((MAX_SEQUENCE_LENGTH,), dtype=tf.int32)
+    input_id2 = tf.keras.layers.Input((MAX_SEQUENCE_LENGTH,), dtype=tf.int32)
+    input_mask2 = tf.keras.layers.Input((MAX_SEQUENCE_LENGTH,), dtype=tf.int32)
+    input_atn2 = tf.keras.layers.Input((MAX_SEQUENCE_LENGTH,), dtype=tf.int32)
+    config = RobertaConfig.from_pretrained('roberta-base', output_hidden_states=False)
+    base_model = TFRobertaModel.from_pretrained('roberta-base', config=config)
+    TransformerA = base_model(input_id, attention_mask=input_mask, token_type_ids=input_atn)[0]
+    TransformerB = base_model(input_id2, attention_mask=input_mask2, token_type_ids=input_atn2)[0]
+    output = tf.keras.layers.GlobalAveragePooling1D()(TransformerA)
+    output2 = tf.keras.layers.GlobalAveragePooling1D()(TransformerB)
+    x = tf.keras.layers.Concatenate()([output, output2])
+    x = tf.keras.layers.Dropout(DROPOUT_RATE)(x)
+    x = tf.keras.layers.Dense(2, activation='softmax')(x)
+    model = tf.keras.models.Model(inputs=[input_id, input_mask, input_atn, input_id2, input_mask2, input_atn2], outputs=x)
+    return model
+
+
+if __name__ == '__main__':
+    MAX_SEQUENCE_LENGTH = 128
+    DROPOUT_RATE = 0.2
+    checkpoint_path = './model/model.h5'
+    tokenizer = RobertaTokenizer.from_pretrained('roberta-base')
+    test = pd.read_csv('./data/tweets_preprocessed.csv')
+    print('test shape =', test.shape)
+    sentence = np.array(test.sentence).tolist()
+    test['sentence'] = test.sentence.apply(lambda x: preprocessing(x)) \
+                       + "[SEP]" + test.word.apply(lambda x: preprocessing(x)) \
+                       + "[SEP]" + test.pos.apply(lambda x: preprocessing(x)) \
+                       + "[SEP]" + test.tag.apply(lambda x: preprocessing(x))
+    test['sentence2'] = test.local.apply(lambda x: preprocessing(x)) \
+                        + "[SEP]" + test.word.apply(lambda x: preprocessing(x)) \
+                        + "[SEP]" + test.pos.apply(lambda x: preprocessing(x)) \
+                        + "[SEP]" + test.tag.apply(lambda x: preprocessing(x))
+    
+    input_categories = ['sentence', 'sentence2']
+    test_inputs = compute_input_arrays(test, input_categories, tokenizer, MAX_SEQUENCE_LENGTH)
+    
+    if os.path.exists(checkpoint_path):
+        print(f"Loading weights from checkpoint: {checkpoint_path}")
+        model = create_model()
+        model.load_weights(checkpoint_path)
+    else:
+        sys.exit(f"Checkpoint not found: {checkpoint_path}")
+    
+    pred = np.argmax(model.predict(test_inputs), axis=1)
+    test['predict'] = pred
+    test['sentence'] = sentence
+
+    headers = ['sentence', 'word', 'predict']
+    test[headers].to_csv('./predict/predict.csv', index=False, header=True)
+```

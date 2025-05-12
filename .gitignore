@@ -12,7 +12,8 @@ __pycache__/
 *.html
 
 # Assets
-**/data/VUA/
+**/data
+**/shared_data
 **/model
 **/predict
 **/output

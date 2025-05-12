@@ -8,7 +8,7 @@
     ```
     python -m venv .venv
 
-    source .venv/bin/activate # For MacOS/Linux only, should modify for Windows
+    source .venv/bin/activate
     ```
 
 3. Install dependencies
@@ -38,7 +38,7 @@
 
     python data_preprocessing.py
 
-    python detect-metaphor.py
+    python predict_metaphor.py
 
-    python detect-ai.py
+    python predict_ai.py
     ```
